@@ -5,6 +5,7 @@ import joblib
 import pickle
 from sklearn.preprocessing import StandardScaler
 from sklearn.impute import SimpleImputer
+from xgboost import XGBClassifier
 
 # Set page config
 st.set_page_config(
@@ -65,6 +66,31 @@ st.markdown("""
             border-radius: 5px;
             padding: 5px;
         }
+        .tooltip {
+            position: relative;
+            display: inline-block;
+            border-bottom: 1px dotted black;
+        }
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 200px;
+            background-color: #555;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 5px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -100px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -72,15 +98,23 @@ st.markdown("""
 @st.cache_resource
 def load_artifacts():
     try:
-        model = joblib.load("credit_risk_model.pkl")
+        # Load XGBoost model using native format
+        model = XGBClassifier()
+        model.load_model("credit_risk_model.json")  # Changed from .pkl to .json
+        
+        # Load other preprocessing artifacts
         scaler = joblib.load("scaler.pkl")
         imputer_median = joblib.load("imputer_median.pkl")
         imputer_mode = joblib.load("imputer_mode.pkl")
+        
         with open("feature_names.pkl", "rb") as f:
             feature_names = pickle.load(f)
+            
         return model, scaler, imputer_median, imputer_mode, feature_names
+        
     except Exception as e:
         st.error(f"Error loading model artifacts: {str(e)}")
+        st.error("Please ensure all model files (credit_risk_model.json, scaler.pkl, etc.) are in the correct directory.")
         st.stop()
 
 model, scaler, imputer_median, imputer_mode, feature_names = load_artifacts()
@@ -139,6 +173,14 @@ def preprocess_input(input_df):
         st.error(f"Error in preprocessing: {str(e)}")
         st.stop()
 
+# Tooltip information for form fields
+def tooltip(label, text):
+    return f"""
+    <div class="tooltip">{label}
+        <span class="tooltiptext">{text}</span>
+    </div>
+    """
+
 # Main app function
 def main():
     st.title("💰 Credit Risk Analysis")
@@ -152,20 +194,39 @@ def main():
     with col1:
         st.subheader("Borrower Information")
         
-        # Input form
+        # Input form with tooltips
         with st.form("credit_form"):
-            age = st.number_input("Age", min_value=18, max_value=100, value=30)
-            monthly_income = st.number_input("Monthly Income ($)", min_value=0, value=5000)
-            debt_ratio = st.number_input("Debt Ratio", min_value=0.0, value=0.5, step=0.01, format="%.2f")
-            revol_util = st.number_input("Revolving Line Utilization Rate", min_value=0.0, max_value=1.0, value=0.5, step=0.01, format="%.2f")
-            num_open_credit = st.number_input("Number of Open Credit Lines/Loans", min_value=0, value=5)
-            num_real_estate = st.number_input("Number of Real Estate Loans/Lines", min_value=0, value=1)
-            num_dependents = st.number_input("Number of Dependents", min_value=0, value=0)
+            age = st.number_input("Age", min_value=18, max_value=100, value=30, 
+                                help="Borrower's age in years")
+            
+            monthly_income = st.number_input("Monthly Income ($)", min_value=0, value=5000,
+                                           help="Borrower's monthly income")
+            
+            debt_ratio = st.number_input("Debt Ratio", min_value=0.0, value=0.5, step=0.01, 
+                                       format="%.2f", help="Monthly debt payments divided by monthly income")
+            
+            revol_util = st.number_input("Revolving Line Utilization Rate", min_value=0.0, max_value=1.0, 
+                                       value=0.5, step=0.01, format="%.2f",
+                                       help="Amount of credit the borrower is using relative to available credit")
+            
+            num_open_credit = st.number_input("Number of Open Credit Lines/Loans", min_value=0, value=5,
+                                            help="Total number of open credit lines and loans")
+            
+            num_real_estate = st.number_input("Number of Real Estate Loans/Lines", min_value=0, value=1,
+                                            help="Number of mortgages and real estate loans")
+            
+            num_dependents = st.number_input("Number of Dependents", min_value=0, value=0,
+                                           help="Number of dependents in family (excluding self)")
             
             st.subheader("Payment History")
-            late_30_59 = st.number_input("30-59 Days Past Due (Count)", min_value=0, value=0)
-            late_60_89 = st.number_input("60-89 Days Past Due (Count)", min_value=0, value=0)
-            late_90 = st.number_input("90+ Days Past Due (Count)", min_value=0, value=0)
+            late_30_59 = st.number_input("30-59 Days Past Due (Count)", min_value=0, value=0,
+                                       help="Number of times borrower has been 30-59 days past due")
+            
+            late_60_89 = st.number_input("60-89 Days Past Due (Count)", min_value=0, value=0,
+                                       help="Number of times borrower has been 60-89 days past due")
+            
+            late_90 = st.number_input("90+ Days Past Due (Count)", min_value=0, value=0,
+                                    help="Number of times borrower has been 90+ days past due")
             
             submitted = st.form_submit_button("Predict Credit Risk")
     
@@ -261,6 +322,7 @@ def main():
                     <li><b>Medium Risk</b> (30-70% probability)</li>
                     <li><b>High Risk</b> (70-100% probability)</li>
                 </ul>
+                <p><b>Note:</b> This is a predictive model and should be used as one factor in credit decisions.</p>
             </div>
             """, unsafe_allow_html=True)
 
@@ -268,7 +330,7 @@ def main():
     st.markdown("---")
     st.markdown("""
     <div style='text-align:center; color:#666; font-size:14px;'>
-        <p>Credit Risk Analysis Model | Built with XGBoost</p>
+        <p>Credit Risk Analysis Model | Built with XGBoost | v2.0</p>
     </div>
     """, unsafe_allow_html=True)
 
