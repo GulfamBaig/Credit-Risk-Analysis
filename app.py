@@ -6,6 +6,7 @@ import pickle
 from sklearn.preprocessing import StandardScaler
 from sklearn.impute import SimpleImputer
 from xgboost import XGBClassifier
+import os
 
 # Set page config
 st.set_page_config(
@@ -105,23 +106,45 @@ st.markdown("""
 @st.cache_resource
 def load_artifacts():
     try:
-        # Load XGBoost model
-        model = XGBClassifier()
-        model.load_model("credit_risk_model.json")  # Changed to .json format
+        # Check if required files exist
+        required_files = {
+            'model': 'credit_risk_model.pkl',
+            'scaler': 'scaler.pkl',
+            'imputer_median': 'imputer_median.pkl',
+            'imputer_mode': 'imputer_mode.pkl',
+            'feature_names': 'feature_names.pkl'
+        }
         
-        # Load preprocessing artifacts
-        scaler = joblib.load("scaler.pkl")
-        imputer_median = joblib.load("imputer_median.pkl")
-        imputer_mode = joblib.load("imputer_mode.pkl")
+        missing_files = [name for name, path in required_files.items() if not os.path.exists(path)]
+        if missing_files:
+            raise FileNotFoundError(f"Missing files: {', '.join(missing_files)}")
+
+        # Load XGBoost model from pickle file
+        with open(required_files['model'], 'rb') as f:
+            model = pickle.load(f)
         
-        with open("feature_names.pkl", "rb") as f:
+        # Verify model type
+        if not isinstance(model, XGBClassifier):
+            raise TypeError("Loaded model is not an XGBClassifier")
+        
+        # Load other preprocessing artifacts
+        scaler = joblib.load(required_files['scaler'])
+        imputer_median = joblib.load(required_files['imputer_median'])
+        imputer_mode = joblib.load(required_files['imputer_mode'])
+        
+        with open(required_files['feature_names'], 'rb') as f:
             feature_names = pickle.load(f)
             
         return model, scaler, imputer_median, imputer_mode, feature_names
         
     except Exception as e:
         st.error(f"Error loading model artifacts: {str(e)}")
-        st.error("Please ensure all model files are in the correct directory.")
+        st.error("Please ensure all these files exist in your directory:")
+        st.error("- credit_risk_model.pkl (XGBoost model)")
+        st.error("- scaler.pkl (StandardScaler)")
+        st.error("- imputer_median.pkl (SimpleImputer for numerical features)")
+        st.error("- imputer_mode.pkl (SimpleImputer for categorical features)")
+        st.error("- feature_names.pkl (list of feature names)")
         st.stop()
 
 model, scaler, imputer_median, imputer_mode, feature_names = load_artifacts()
