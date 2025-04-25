@@ -55,41 +55,48 @@ st.markdown("""
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
         .risk-meter {
+            height: 30px;
             width: 100%;
             background: #ddd;
             border-radius: 5px;
             margin: 10px 0;
+            position: relative;
         }
         .risk-meter-fill {
-            text-align: center;
-            color: white;
+            height: 100%;
             border-radius: 5px;
-            padding: 5px;
+            transition: width 0.5s ease;
         }
-        .tooltip {
-            position: relative;
-            display: inline-block;
-            border-bottom: 1px dotted black;
-        }
-        .tooltip .tooltiptext {
-            visibility: hidden;
-            width: 200px;
-            background-color: #555;
-            color: #fff;
-            text-align: center;
-            border-radius: 6px;
-            padding: 5px;
+        .risk-label {
             position: absolute;
-            z-index: 1;
-            bottom: 125%;
-            left: 50%;
-            margin-left: -100px;
-            opacity: 0;
-            transition: opacity 0.3s;
+            width: 100%;
+            text-align: center;
+            line-height: 30px;
+            color: white;
+            font-weight: bold;
+            text-shadow: 1px 1px 1px rgba(0,0,0,0.5);
         }
-        .tooltip:hover .tooltiptext {
-            visibility: visible;
-            opacity: 1;
+        .info-box {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f0f8ff;
+            border-radius: 5px;
+            border-left: 5px solid #4CAF50;
+        }
+        .feature-card {
+            background: white;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .feature-card h4 {
+            margin-top: 0;
+            color: #2c3e50;
+        }
+        .feature-card p {
+            margin-bottom: 0;
+            color: #666;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -98,11 +105,11 @@ st.markdown("""
 @st.cache_resource
 def load_artifacts():
     try:
-        # Load XGBoost model using native format
+        # Load XGBoost model
         model = XGBClassifier()
-        model.load_model("credit_risk_model.pkl")  # Changed from .pkl to .json
+        model.load_model("credit_risk_model.json")  # Changed to .json format
         
-        # Load other preprocessing artifacts
+        # Load preprocessing artifacts
         scaler = joblib.load("scaler.pkl")
         imputer_median = joblib.load("imputer_median.pkl")
         imputer_mode = joblib.load("imputer_mode.pkl")
@@ -114,7 +121,7 @@ def load_artifacts():
         
     except Exception as e:
         st.error(f"Error loading model artifacts: {str(e)}")
-        st.error("Please ensure all model files (credit_risk_model.pkl, scaler.pkl, etc.) are in the correct directory.")
+        st.error("Please ensure all model files are in the correct directory.")
         st.stop()
 
 model, scaler, imputer_median, imputer_mode, feature_names = load_artifacts()
@@ -173,19 +180,11 @@ def preprocess_input(input_df):
         st.error(f"Error in preprocessing: {str(e)}")
         st.stop()
 
-# Tooltip information for form fields
-def tooltip(label, text):
-    return f"""
-    <div class="tooltip">{label}
-        <span class="tooltiptext">{text}</span>
-    </div>
-    """
-
 # Main app function
 def main():
     st.title("💰 Credit Risk Analysis")
     st.markdown("""
-    This app predicts the probability of a borrower experiencing serious financial distress in the next 2 years.
+    Predict the probability of a borrower experiencing serious financial distress in the next 2 years.
     """)
     
     # Create two columns for layout
@@ -194,7 +193,7 @@ def main():
     with col1:
         st.subheader("Borrower Information")
         
-        # Input form with tooltips
+        # Input form
         with st.form("credit_form"):
             age = st.number_input("Age", min_value=18, max_value=100, value=30, 
                                 help="Borrower's age in years")
@@ -254,7 +253,7 @@ def main():
                 probability = model.predict_proba(processed_data)[0, 1]
             
             # Display results
-            st.subheader("Prediction Results")
+            st.subheader("Risk Assessment")
             
             with st.container():
                 st.markdown("<div class='result-box'>", unsafe_allow_html=True)
@@ -274,55 +273,61 @@ def main():
                     recommendation = "❌ This applicant appears to be a high credit risk."
                 
                 st.markdown(f"""
-                <h3 style='color:{color}; text-align:center;'>Risk Level: {risk_level}</h3>
+                <h3 style='color:{color}; text-align:center;'>{risk_level}</h3>
                 <p style='text-align:center; font-size:18px;'>Probability of Serious Delinquency: <b>{probability:.1%}</b></p>
-                <p style='text-align:center;'>{recommendation}</p>
                 """, unsafe_allow_html=True)
                 
                 # Risk meter
                 st.markdown(f"""
                 <div class='risk-meter'>
-                    <div class='risk-meter-fill' style='width:{probability*100}%; background:{color};'>
-                        {probability*100:.1f}%
-                    </div>
+                    <div class='risk-meter-fill' style='width:{probability*100}%; background:{color};'></div>
+                    <div class='risk-label'>{probability*100:.1f}%</div>
                 </div>
+                <p style='text-align:center;'>{recommendation}</p>
                 """, unsafe_allow_html=True)
                 
                 st.markdown("</div>", unsafe_allow_html=True)
                 
-                # Explanation of factors
+                # Key factors explanation
                 st.markdown("""
-                <div style='margin-top:20px; padding:15px; background-color:#f0f8ff; border-radius:5px;'>
-                    <h4>Key Factors Considered:</h4>
-                    <ul>
-                        <li>Payment History (Late Payments)</li>
-                        <li>Debt-to-Income Ratio</li>
-                        <li>Credit Utilization</li>
-                        <li>Number of Credit Lines</li>
-                        <li>Age and Dependents</li>
-                    </ul>
+                <div class='info-box'>
+                    <h4>Key Risk Factors</h4>
+                    <div class='feature-card'>
+                        <h4>Payment History</h4>
+                        <p>Late payments significantly impact credit risk. Multiple late payments increase risk.</p>
+                    </div>
+                    <div class='feature-card'>
+                        <h4>Debt-to-Income Ratio</h4>
+                        <p>Higher ratios indicate greater financial strain and higher risk.</p>
+                    </div>
+                    <div class='feature-card'>
+                        <h4>Credit Utilization</h4>
+                        <p>Using a high percentage of available credit can negatively impact risk assessment.</p>
+                    </div>
                 </div>
                 """, unsafe_allow_html=True)
         else:
-            st.subheader("Prediction Results")
+            st.subheader("Risk Assessment")
             st.markdown("""
             <div class='result-box' style='text-align:center; padding:40px;'>
                 <p>Please fill out the borrower information and click <b>'Predict Credit Risk'</b> to see results.</p>
             </div>
             """, unsafe_allow_html=True)
             
-            # Add some information about credit risk
+            # Information about credit risk
             st.markdown("""
-            <div style='margin-top:20px; padding:15px; background-color:#f0f8ff; border-radius:5px;'>
-                <h4>About Credit Risk Analysis:</h4>
-                <p>This model predicts the probability (0-100%) that a borrower will experience serious financial distress in the next 2 years.</p>
-                <p>Risk levels are categorized as:</p>
-                <ul>
-                    <li><b>Low Risk</b> (0-30% probability)</li>
-                    <li><b>Medium Risk</b> (30-70% probability)</li>
-                    <li><b>High Risk</b> (70-100% probability)</li>
-                </ul>
-                <p><b>Note:</b> This is a predictive model and should be used as one factor in credit decisions.</p>
+            <div class='info-box'>
+                <h4>About Credit Risk Analysis</h4>
+                <p>This model predicts the probability that a borrower will experience serious financial distress in the next 2 years.</p>
+                
+                <div class='feature-card'>
+                    <h4>Risk Categories</h4>
+                    <p><b>Low Risk</b> (0-30% probability)</p>
+                    <p><b>Medium Risk</b> (30-70% probability)</p>
+                    <p><b>High Risk</b> (70-100% probability)</p>
+                </div>
+                
+                <p><b>Note:</b> This tool provides predictive analytics to support, not replace, credit decisions.</p>
             </div>
             """, unsafe_allow_html=True)
 
