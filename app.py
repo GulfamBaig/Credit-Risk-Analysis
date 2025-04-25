@@ -100,7 +100,7 @@ def load_artifacts():
     try:
         # Load XGBoost model using native format
         model = XGBClassifier()
-        model.load_model("credit_risk_model.json")  # Changed from .pkl to .json
+        model.load_model("credit_risk_model.pkl")  # Changed from .pkl to .json
         
         # Load other preprocessing artifacts
         scaler = joblib.load("scaler.pkl")
@@ -114,7 +114,7 @@ def load_artifacts():
         
     except Exception as e:
         st.error(f"Error loading model artifacts: {str(e)}")
-        st.error("Please ensure all model files (credit_risk_model.json, scaler.pkl, etc.) are in the correct directory.")
+        st.error("Please ensure all model files (credit_risk_model.pkl, scaler.pkl, etc.) are in the correct directory.")
         st.stop()
 
 model, scaler, imputer_median, imputer_mode, feature_names = load_artifacts()
